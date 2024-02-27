@@ -11,9 +11,9 @@
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
 int parse_uri(char *uri, char *filename, char *cgiargs);
-void serve_static(int fd, char *filename, int filesize);
+void serve_static(int fd, char *filename, int filesize, char *method);
 void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
+void serve_dynamic(int fd, char *filename, char *cgiargs, char *method);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
                  char *longmsg);
 
@@ -56,9 +56,9 @@ void doit(int fd)
   Rio_readinitb(&rio, fd);
   Rio_readlineb(&rio, buf, MAXLINE);
   printf("Request headers:\n");
-  printf("%s", buf);
+  printf("%s ", buf);
   sscanf(buf, "%s %s %s", method, uri, version);
-  if (strcasecmp(method, "GET"))
+  if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD"))
   {
     clienterror(fd, method, "501", "Not implemented",
                 "Tiny does not implement this method");
@@ -83,7 +83,7 @@ void doit(int fd)
                   "Tiny couldn’t read the file");
       return;
     }
-    serve_static(fd, filename, sbuf.st_size);
+    serve_static(fd, filename, sbuf.st_size, method);
   }
   else
   { /* Serve dynamic content */
@@ -93,7 +93,7 @@ void doit(int fd)
                   "Tiny couldn’t run the CGI program");
       return;
     }
-    serve_dynamic(fd, filename, cgiargs);
+    serve_dynamic(fd, filename, cgiargs, method);
   }
 }
 
@@ -177,7 +177,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
   }
 }
 
-void serve_static(int fd, char *filename, int filesize)
+void serve_static(int fd, char *filename, int filesize, char *method)
 {
   // 정적 파일등을 클라이언트에게 서비스하는데 사용
   // fd 파일 디스크립터
@@ -198,24 +198,20 @@ void serve_static(int fd, char *filename, int filesize)
   printf("Response headers:\n");    // 서버 콘솔에 응답헤더 출력
   printf("%s", buf);
 
-  // /* Send response body to client */
-  // srcfd = Open(filename, O_RDONLY, 0);                        // 파일을 읽기 위해 Open함수를 사용하여 filename을 연다.
-  //                                                             // O_RDONLY 플래그는 파일을 읽기 전용 모드로 열겠다는 것을 의미한다.
-  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0); // Mmap 함수를 이용해서 파일을 메모리에 매핑한다.
-  //                                                             // 파일의 내용을 메모리 주소공간에 매핑하여 파일I/O를 통해
-  //                                                             // 데이터를 읽는 대신 메모리 접근을 통해서 데이터를 빠르게 처리할 수 있게 해준다.
-  //                                                             // PROT_READ는 매핑된 메모리 영역이 읽기 가능함을 나타낸다.
-  //                                                             // MAP_PRIVATE는 매핑이 비공유임을 나타낸다.
-  // Close(srcfd);                                               // 파일 디스크럽터는 더 이상 필요하지 않으므로 Close를 호출하여 닫는다.
-  // Rio_writen(fd, srcp, filesize);                             // Rio_writen함수를 이용해서 매핑된 파일의 내용을 클라이언트에게 전송한다.
-  // Munmap(srcp, filesize);                                     // 메모리 매핑 해제
-
-  srcfd = Open(filename, O_RDONLY, 0);
-  srcp = malloc(filesize);
-  Rio_readn(srcfd, srcp, filesize);
-  Close(srcfd);
-  Rio_writen(fd, srcp, filesize);
-  free(srcp);
+  if (strcasecmp(method, "GET") == 0)
+  {
+    /* Send response body to client */
+    srcfd = Open(filename, O_RDONLY, 0);                        // 파일을 읽기 위해 Open함수를 사용하여 filename을 연다.
+                                                                // O_RDONLY 플래그는 파일을 읽기 전용 모드로 열겠다는 것을 의미한다.
+    srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0); // Mmap 함수를 이용해서 파일을 메모리에 매핑한다.
+                                                                // 파일의 내용을 메모리 주소공간에 매핑하여 파일I/O를 통해
+                                                                // 데이터를 읽는 대신 메모리 접근을 통해서 데이터를 빠르게 처리할 수 있게 해준다.
+                                                                // PROT_READ는 매핑된 메모리 영역이 읽기 가능함을 나타낸다.
+                                                                // MAP_PRIVATE는 매핑이 비공유임을 나타낸다.
+    Close(srcfd);                                               // 파일 디스크럽터는 더 이상 필요하지 않으므로 Close를 호출하여 닫는다.
+    Rio_writen(fd, srcp, filesize);                             // Rio_writen함수를 이용해서 매핑된 파일의 내용을 클라이언트에게 전송한다.
+    Munmap(srcp, filesize);                                     // 메모리 매핑 해제
+  }
 }
 
 /*
@@ -244,7 +240,7 @@ void get_filetype(char *filename, char *filetype)
   // 위의 조건에 해당하지 않는 모든 파일에 대해서는 filetype을 "text/plain"으로 설정
 }
 
-void serve_dynamic(int fd, char *filename, char *cgiargs)
+void serve_dynamic(int fd, char *filename, char *cgiargs, char *method)
 {
   // 동적 컨텐츠를 클라이언트에게 제공하는 데 사용
   // fd 클라이언트의 파일 디스크립터
@@ -262,32 +258,34 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
   200 OK와 같은상태 메시지와 서버 정보를 포함하는 기본 HTTP 헤더이다.
   이 단계는 클라이언트에게 요청이 성공적으로 수신되었음을 알린다.
   */
+  if (strcasecmp(method, "GET") == 0)
+  {
+    if (Fork() == 0)
+    { /* Child */
+      /* Real server would set all CGI vars here */
+      setenv("QUERY_STRING", cgiargs, 1);
+      Dup2(fd, STDOUT_FILENO);              /* Redirect stdout to client */
+      Execve(filename, emptylist, environ); /* Run CGI program */
+    }
+    /*
+    Fork 시스템을 호출해서 새로운 자식 프로세스를 생성한다.
+    자식 프로세스에서는 setenv 함수를 호출해서 QUERY_STRING 환경 변수를 설정한다.
+    환경 변수에는 CGI 프로그램에 전달할 인자(cgiargs) 가 저장된다.
+    CGI 프로그램이 클라이언트로 부터 받은 요청 정보를 처리하는데 사용된다
 
-  if (Fork() == 0)
-  { /* Child */
-    /* Real server would set all CGI vars here */
-    setenv("QUERY_STRING", cgiargs, 1);
-    Dup2(fd, STDOUT_FILENO);              /* Redirect stdout to client */
-    Execve(filename, emptylist, environ); /* Run CGI program */
+    Dup2(fd, STDOUT_FILENO)를 호출하여 자식 프로세스의
+    표준 출력을 클라이언트의 소켓 파일 디스크립터로 리다이렉션한다.
+    CGI 프로그램의 출력이 직접 클라이언트로 전송된다.
+
+    Execve 함수를 사용하여 CGI 프로그램을 실행한다.
+    filename은 실행할 프로그램의 경로이며
+    emptylist는 프로그램에 전달될 인자 배열(이 경우 인자가 없음)
+    environ은 현재 환경 변수를 전달한다.
+    */
+    Wait(NULL); /* Parent waits for and reaps child */
+
+    // Wait(NULL) 호출을 통해 부모 프로세스는 자식 프로세스의 실행이
+    // 완료될 때까지 대기하고, 자식 프로세스가 종료되면 이를 회수(리핑)한다.
+    // 이는 자식 프로세스가 생성한 모든 리소스가 제대로 정리되고, 좀비 프로세스가 발생하지 않도록 한다.
   }
-  /*
-  Fork 시스템을 호출해서 새로운 자식 프로세스를 생성한다.
-  자식 프로세스에서는 setenv 함수를 호출해서 QUERY_STRING 환경 변수를 설정한다.
-  환경 변수에는 CGI 프로그램에 전달할 인자(cgiargs) 가 저장된다.
-  CGI 프로그램이 클라이언트로 부터 받은 요청 정보를 처리하는데 사용된다
-
-  Dup2(fd, STDOUT_FILENO)를 호출하여 자식 프로세스의
-  표준 출력을 클라이언트의 소켓 파일 디스크립터로 리다이렉션한다.
-  CGI 프로그램의 출력이 직접 클라이언트로 전송된다.
-
-  Execve 함수를 사용하여 CGI 프로그램을 실행한다.
-  filename은 실행할 프로그램의 경로이며
-  emptylist는 프로그램에 전달될 인자 배열(이 경우 인자가 없음)
-  environ은 현재 환경 변수를 전달한다.
-  */
-  Wait(NULL); /* Parent waits for and reaps child */
-
-  // Wait(NULL) 호출을 통해 부모 프로세스는 자식 프로세스의 실행이
-  // 완료될 때까지 대기하고, 자식 프로세스가 종료되면 이를 회수(리핑)한다.
-  // 이는 자식 프로세스가 생성한 모든 리소스가 제대로 정리되고, 좀비 프로세스가 발생하지 않도록 한다.
 }
