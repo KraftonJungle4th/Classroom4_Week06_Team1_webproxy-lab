@@ -197,7 +197,6 @@ void serve_static(int fd, char *filename, int filesize, char *method)
                                     // 이 단계에서 클라이언트는 응답의 메타 데이터를 수신한다.
   printf("Response headers:\n");    // 서버 콘솔에 응답헤더 출력
   printf("%s", buf);
-<<<<<<< HEAD
 
   // /* Send response body to client */
   // srcfd = Open(filename, O_RDONLY, 0);                        // 파일을 읽기 위해 Open함수를 사용하여 filename을 연다.
@@ -217,7 +216,6 @@ void serve_static(int fd, char *filename, int filesize, char *method)
   Close(srcfd);
   Rio_writen(fd, srcp, filesize);
   free(srcp);
-=======
 
   if (strcasecmp(method, "GET") == 0)
   {
@@ -233,7 +231,6 @@ void serve_static(int fd, char *filename, int filesize, char *method)
     Rio_writen(fd, srcp, filesize);                             // Rio_writen함수를 이용해서 매핑된 파일의 내용을 클라이언트에게 전송한다.
     Munmap(srcp, filesize);                                     // 메모리 매핑 해제
   }
->>>>>>> 89f4e5f... add HEAD method
 }
 
 /*
