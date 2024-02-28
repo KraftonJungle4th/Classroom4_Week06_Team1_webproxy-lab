@@ -90,8 +90,6 @@ void doit(int client_acceptfd)
    */
   sprintf(buf, "%s", strcat(strcat(request_start_line, "\r\n"), request_hdrs));
 
-  printf("======After Aggragate HTTP MSG==== \n%s\n", buf);
-
   /** #6. Tiny 서버에 연결
    * 1) Open_clientfd로 client socket만들고 connect 요청
    * 2) Tiny 서버로부터 데이터 읽어올 준비
