@@ -44,7 +44,7 @@ int main(int argc, char **argv)
                 0);
     printf("Accepted connection from (%s, %s)\n", hostname, port);
     // 트랜잭션 수행
-    doit(connfd);  // line:netp:tiny:doit
+    doit(connfd); // line:netp:tiny:doit
     // 자신의 연결 끝을 닫는다.
     Close(connfd); // line:netp:tiny:close
   }
@@ -62,14 +62,14 @@ void doit(int fd)
   Rio_readinitb(&rio, fd);
   Rio_readlineb(&rio, buf, MAXLINE);
   printf("Request headers:\n");
-  printf("%s ", buf);
+  printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);
   if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD"))
   {
     clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
     return;
   }
-  // Tiny는 요청헤더내의 어떤 정보도 사용하지않는다. 
+  // Tiny는 요청헤더내의 어떤 정보도 사용하지않는다.
   // 요청한 헤더 파일을 요청하지만 읽고 무시한다.
   read_requesthdrs(&rio);
 
@@ -108,7 +108,6 @@ void doit(int fd)
     serve_dynamic(fd, filename, cgiargs, method);
   }
 }
-
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg)
 {
@@ -250,8 +249,8 @@ void get_filetype(char *filename, char *filetype)
     strcpy(filetype, "image/png");
   // 파일 이름에 .png 확장자가 포함되어 있으면, filetype을 "image/png"로 설정
   else if (strstr(filename, ".jpg"))
-    strcpy(filetype, "image/jpeg");
-  // 파일 이름에 .jpg 확장자가 있으면, filetype을 "image/jpeg"로 설정
+    strcpy(filetype, "image/jpg");
+  // 파일 이름에 .jpg 확장자가 있으면, filetype을 "image/jpg"로 설정
   else if (strstr(filename, ".mp4"))
     strcpy(filetype, "video/mp4");
   // 파일 이름에 .mp4 확장자가 있으면, filetype을 "video/mp4"로 설정
